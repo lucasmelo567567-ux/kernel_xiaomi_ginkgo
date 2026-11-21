@@ -22,26 +22,25 @@ jobs:
       - name: Integrar KernelSU Next
         working-directory: kernel
         run: |
-          BASE="https://raw.githubusercontent.com"
+          BASE="https://githubusercontent.com"
           PATH_KSU="KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
           curl -LSs "$BASE/$PATH_KSU" | bash -s v1.1.1
-          if [ -f arch/arm64/configs/vendor/xiaomi/ginkgo.config ]; then
-            echo "CONFIG_KSU=y" >> arch/arm64/configs/vendor/xiaomi/ginkgo.config
-          else
-            echo "CONFIG_KSU=y" >> arch/arm64/configs/ginkgo_defconfig
-          fi
 
       - name: Compilar Kernel
         working-directory: kernel
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          if [ -f arch/arm64/configs/vendor/xiaomi/ginkgo.config ]; then
-            make O=out ARCH=arm64 vendor/trinket-perf_defconfig vendor/xiaomi/trinket.config vendor/xiaomi/ginkgo.config
+          if [ -f arch/arm64/configs/vendor/ginkgo-perf_defconfig ]; then
+            make O=out ARCH=arm64 vendor/ginkgo-perf_defconfig
+          elif [ -f arch/arm64/configs/vendor/xiaomi/ginkgo.config ]; then
+            make O=out ARCH=arm64 vendor/trinket-perf_defconfig vendor/xiaomi/xiaomi.config vendor/xiaomi/trinket.config vendor/xiaomi/ginkgo.config
           else
             make O=out ARCH=arm64 ginkgo_defconfig
           fi
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb
+          scripts/config --file out/.config -e KSU
+          make O=out ARCH=arm64 olddefconfig
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- KCFLAGS="-Wno-error" Image.gz-dtb
 
       - name: Empacotar AnyKernel3 ZIP
         run: |
