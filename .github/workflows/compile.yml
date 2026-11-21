@@ -1,4 +1,4 @@
-name: Compile Kernel
+name: Build Ginkgo KernelSU Next
 
 on:
   workflow_dispatch:
@@ -6,21 +6,47 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-       - name: Configuring git environment.
-         run: |
-            git config --global user.name tejas101k
-            git config --global user.email tejassingh649@rediffmail.com
+      - name: Instalar dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 device-tree-compiler cpio
 
-       - name: Building Kernel.
-         run: |
-             git clone --depth 1 https://${{ secrets.USERNAME }}:${{ secrets.TOKEN }}@github.com/${{ secrets.USERNAME }}/Cuh-KerneL.git -b fourteen kernel
-             cd kernel
-             chmod 777 build.sh
-             ./build.sh
+      - name: Baixar Kernel Android 17 (LineageOS 24.0) e Clang
+        run: |
+          git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_sm6125 -b lineage-24.0 kernel
+          mkdir -p clang
+          curl -L https://googlesource.com -o clang.tar.gz
+          tar -xzf clang.tar.gz -C clang
+          git clone --depth=1 https://github.com -b master anykernel
 
-       - name: Uploading ZIP.
-         run: |
-             cd kernel
-             curl -T *.zip https://pixeldrain.com/api/file/ && echo ""
+      - name: Integrar KernelSU Next
+        working-directory: kernel
+        run: |
+          curl -LSs "https://githubusercontent.com" | bash -s v1.1.1
+          echo "CONFIG_KSU=y" >> arch/arm64/configs/vendor/xiaomi/ginkgo.config
+
+      - name: Compilar Kernel
+        working-directory: kernel
+        run: |
+          export PATH="$GITHUB_WORKSPACE/clang/bin:$PATH"
+          export ARCH=arm64
+          export SUBARCH=arm64
+          make O=out ARCH=arm64 vendor/trinket-perf_defconfig vendor/xiaomi/trinket.config vendor/xiaomi/ginkgo.config
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb dtbo.img
+
+      - name: Empacotar AnyKernel3 ZIP
+        run: |
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb anykernel/
+          cp kernel/out/arch/arm64/boot/dtbo.img anykernel/
+          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel/anykernel.sh
+          sed -i 's/block=\/dev\/block\/platform\/omap\/omap_hsmmc.0\/by-name\/boot;/block=auto;/g' anykernel/anykernel.sh
+          sed -i 's/is_slot_device=0;/is_slot_device=auto;/g' anykernel/anykernel.sh
+          cd anykernel
+          zip -r9 ../Ginkgo-A17-KSUNext.zip * -x .git README.md *placeholder
+
+      - name: Upload do ZIP compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ginkgo-A17-KSUNext
+          path: Ginkgo-A17-KSUNext.zip
