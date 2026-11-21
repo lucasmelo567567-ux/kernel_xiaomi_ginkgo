@@ -12,15 +12,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex git libssl-dev libelf-dev lz4 python3 device-tree-compiler cpio zip unzip xz-utils zstd clang lld llvm gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Baixar Kernel Android 17 (LineageOS) e AnyKernel3
+      - name: Baixar Kernel Android 17 e AnyKernel3
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git clone --depth=1 https://github.com kernel
-          git clone --depth=1 https://github.com -b master anykernel
+          gh repo clone LineageOS/android_kernel_xiaomi_sm6125 kernel -- --depth=1
+          gh repo clone osm0sis/AnyKernel3 anykernel -- --depth=1 -b master
 
       - name: Integrar KernelSU Next
         working-directory: kernel
         run: |
-          curl -LSs "https://githubusercontent.com" | bash -s v1.1.1
+          BASE="https://raw.githubusercontent.com"
+          PATH_KSU="KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
+          curl -LSs "$BASE/$PATH_KSU" | bash -s v1.1.1
           if [ -f arch/arm64/configs/vendor/xiaomi/ginkgo.config ]; then
             echo "CONFIG_KSU=y" >> arch/arm64/configs/vendor/xiaomi/ginkgo.config
           else
