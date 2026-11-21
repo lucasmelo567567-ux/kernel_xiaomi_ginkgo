@@ -31,14 +31,8 @@ jobs:
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          if [ -f arch/arm64/configs/vendor/ginkgo-perf_defconfig ]; then
-            make O=out ARCH=arm64 vendor/ginkgo-perf_defconfig
-          elif [ -f arch/arm64/configs/vendor/xiaomi/ginkgo.config ]; then
-            make O=out ARCH=arm64 vendor/trinket-perf_defconfig vendor/xiaomi/xiaomi.config vendor/xiaomi/trinket.config vendor/xiaomi/ginkgo.config
-          else
-            make O=out ARCH=arm64 ginkgo_defconfig
-          fi
-          scripts/config --file out/.config -e KSU
+          make O=out ARCH=arm64 vendor/trinket-perf_defconfig vendor/xiaomi/trinket.config vendor/xiaomi/ginkgo.config
+          scripts/config --file out/.config -e COMPAT -e KSU
           make O=out ARCH=arm64 olddefconfig
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- KCFLAGS="-Wno-error" Image.gz-dtb
 
