@@ -12,12 +12,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc bison build-essential ccache curl flex git libssl-dev libelf-dev lz4 python3 device-tree-compiler cpio zip unzip xz-utils zstd clang lld llvm gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Baixar Kernel Android 17 e AnyKernel3
+      - name: Baixar Kernel Android 17, AOSP Clang e AnyKernel3
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh repo clone LineageOS/android_kernel_xiaomi_sm6125 kernel -- --depth=1
           gh repo clone osm0sis/AnyKernel3 anykernel -- --depth=1 -b master
+          mkdir -p clang
+          CLANG_HOST="https://android.googlesource.com"
+          CLANG_PATH="platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r530567.tar.gz"
+          curl -LSs "$CLANG_HOST/$CLANG_PATH" -o clang.tar.gz
+          tar -xzf clang.tar.gz -C clang
 
       - name: Integrar KernelSU Next
         working-directory: kernel
@@ -29,13 +34,14 @@ jobs:
       - name: Compilar Kernel
         working-directory: kernel
         run: |
+          export PATH="$GITHUB_WORKSPACE/clang/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           GINKGO_CFG=$(cd arch/arm64/configs && find . -name "*ginkgo*" | head -n 1 | sed 's|^\./||')
           make O=out ARCH=arm64 vendor/trinket-perf_defconfig $GINKGO_CFG
           scripts/config --file out/.config -e COMPAT -e KSU
           make O=out ARCH=arm64 olddefconfig
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- KCFLAGS="-Wno-error" Image.gz-dtb
+          make -j2 O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb
 
       - name: Empacotar AnyKernel3 ZIP
         run: |
