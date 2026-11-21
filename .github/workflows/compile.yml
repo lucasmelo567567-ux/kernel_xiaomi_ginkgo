@@ -31,7 +31,8 @@ jobs:
         run: |
           export ARCH=arm64
           export SUBARCH=arm64
-          make O=out ARCH=arm64 vendor/trinket-perf_defconfig  vendor/xiaomi/ginkgo.config
+          GINKGO_CFG=$(cd arch/arm64/configs && find . -name "*ginkgo*" | head -n 1 | sed 's|^\./||')
+          make O=out ARCH=arm64 vendor/trinket-perf_defconfig $GINKGO_CFG
           scripts/config --file out/.config -e COMPAT -e KSU
           make O=out ARCH=arm64 olddefconfig
           make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- KCFLAGS="-Wno-error" Image.gz-dtb
