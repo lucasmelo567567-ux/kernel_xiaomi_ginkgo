@@ -24,48 +24,21 @@ jobs:
           curl -LSs "$CLANG_HOST/$CLANG_PATH" -o clang.tar.gz
           tar -xzf clang.tar.gz -C clang
 
-      - name: Integrar KernelSU Next e patch path_umount
+      - name: Integrar KernelSU Next e patches
         working-directory: kernel
         run: |
           BASE="https://raw.githubusercontent.com"
           PATH_KSU="KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
           curl -LSs "$BASE/$PATH_KSU" | bash -s v1.1.1
-          if ! grep -q "int path_umount" fs/namespace.c; then
-            cat << 'EOF' >> fs/namespace.c
+          sed -i '15s|^|// |' arch/arm64/boot/dts/xiaomi/qcom-base/trinket-thermal-overlay.dtsi || true
+          python3 -c '
+          p = "fs/namespace.c"
+          s = open(p).read()
+          code = "\nstatic int can_umount(const struct path *path, int flags)\n{\n\tstruct mount *mnt = real_mount(path->mnt);\n\tif (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))\n\t\treturn -EINVAL;\n\tif (!may_mount())\n\t\treturn -EPERM;\n\tif (path->dentry != path->mnt->mnt_root)\n\t\treturn -EINVAL;\n\tif (!check_mnt(mnt))\n\t\treturn -EINVAL;\n\tif (mnt->mnt.mnt_flags & MNT_LOCKED)\n\t\treturn -EINVAL;\n\tif (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))\n\t\treturn -EPERM;\n\treturn 0;\n}\nint path_umount(struct path *path, int flags)\n{\n\tstruct mount *mnt = real_mount(path->mnt);\n\tint ret = can_umount(path, flags);\n\tif (!ret)\n\t\tret = do_umount(mnt, flags);\n\tdput(path->dentry);\n\tmntput_no_expire(mnt);\n\treturn ret;\n}\n"
+          if "int path_umount" not in s: open(p, "w").write(s + code)
+          '
 
-          static int can_umount(const struct path *path, int flags)
-          {
-          	struct mount *mnt = real_mount(path->mnt);
-          	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
-          		return -EINVAL;
-          	if (!may_mount())
-          		return -EPERM;
-          	if (path->dentry != path->mnt->mnt_root)
-          		return -EINVAL;
-          	if (!check_mnt(mnt))
-          		return -EINVAL;
-          	if (mnt->mnt.mnt_flags & MNT_LOCKED)
-          		return -EINVAL;
-          	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
-          		return -EPERM;
-          	return 0;
-          }
-
-          int path_umount(struct path *path, int flags)
-          {
-          	struct mount *mnt = real_mount(path->mnt);
-          	int ret;
-          	ret = can_umount(path, flags);
-          	if (!ret)
-          		ret = do_umount(mnt, flags);
-          	dput(path->dentry);
-          	mntput_no_expire(mnt);
-          	return ret;
-          }
-          EOF
-          fi
-
-      - name: Compilar Kernel
+      - name: Compilar Kernel Image.gz-dtb
         working-directory: kernel
         run: |
           export PATH="$GITHUB_WORKSPACE/clang/bin:$PATH"
@@ -75,19 +48,19 @@ jobs:
           make O=out ARCH=arm64 vendor/trinket-perf_defconfig $GINKGO_CFG
           scripts/config --file out/.config -e COMPAT -e KSU
           make O=out ARCH=arm64 olddefconfig
-          make -j2 O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz
+          make -j2 O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb
 
-      - name: Empacotar AnyKernel3 ZIP
+      - name: Empacotar AnyKernel3 ZIP pronto para flash
         run: |
-          cp kernel/out/arch/arm64/boot/Image.gz anykernel/
-          sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel/anykernel.sh
-          sed -i 's/block=\/dev\/block\/platform\/omap\/omap_hsmmc.0\/by-name\/boot;/block=auto;/g' anykernel/anykernel.sh
-          sed -i 's/is_slot_device=0;/is_slot_device=auto;/g' anykernel/anykernel.sh
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb anykernel/
+          sed -i 's|BLOCK=.*;|BLOCK=/dev/block/bootdevice/by-name/boot;|g' anykernel/anykernel.sh
+          sed -i 's|IS_SLOT_DEVICE=.*;|IS_SLOT_DEVICE=0;|g' anykernel/anykernel.sh
+          sed -i '/# init.rc/,/fstab;/d' anykernel/anykernel.sh
           cd anykernel
-          zip -r9 ../Ginkgo-A17-KSUNext.zip * -x .git README.md *placeholder
+          zip -r9 ../Ginkgo-A17-KSUNext-BOOTABLE.zip * -x .git README.md *placeholder
 
       - name: Upload do ZIP compilado
         uses: actions/upload-artifact@v4
         with:
-          name: Ginkgo-A17-KSUNext
-          path: Ginkgo-A17-KSUNext.zip
+          name: Ginkgo-A17-KSUNext-BOOTABLE
+          path: Ginkgo-A17-KSUNext-BOOTABLE.zip
