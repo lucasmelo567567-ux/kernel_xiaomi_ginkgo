@@ -22,7 +22,7 @@ jobs:
       - name: Integrar KernelSU Next
         working-directory: kernel
         run: |
-          BASE="https://githubusercontent.com"
+          BASE="https://raw.githubusercontent.com"
           PATH_KSU="KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
           curl -LSs "$BASE/$PATH_KSU" | bash -s v1.1.1
 
