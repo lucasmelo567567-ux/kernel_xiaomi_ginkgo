@@ -10,14 +10,11 @@ jobs:
       - name: Instalar dependências
         run: |
           sudo apt-get update
-          sudo apt-get install -y bc bison build-essential ccache curl flex g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev lib32readline-dev lib32z1-dev liblz4-tool libncurses5 libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev python3 device-tree-compiler cpio
+          sudo apt-get install -y bc bison build-essential ccache curl flex git libssl-dev libelf-dev lz4 python3 device-tree-compiler cpio zip unzip xz-utils zstd clang lld llvm gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
 
-      - name: Baixar Kernel Android 17 (LineageOS 24.0) e Clang
+      - name: Baixar Kernel Android 17 (LineageOS 24.0) e AnyKernel3
         run: |
-          git clone --depth=1 https://github.com/LineageOS/android_kernel_xiaomi_sm6125 -b lineage-24.0 kernel
-          mkdir -p clang
-          curl -L https://googlesource.com -o clang.tar.gz
-          tar -xzf clang.tar.gz -C clang
+          git clone --depth=1 https://github.com -b lineage-24.0 kernel
           git clone --depth=1 https://github.com -b master anykernel
 
       - name: Integrar KernelSU Next
@@ -29,11 +26,10 @@ jobs:
       - name: Compilar Kernel
         working-directory: kernel
         run: |
-          export PATH="$GITHUB_WORKSPACE/clang/bin:$PATH"
           export ARCH=arm64
           export SUBARCH=arm64
           make O=out ARCH=arm64 vendor/trinket-perf_defconfig vendor/xiaomi/trinket.config vendor/xiaomi/ginkgo.config
-          make -j$(nproc --all) O=out ARCH=arm64 CC=clang CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb dtbo.img
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld AR=llvm-ar NM=llvm-nm OBJCOPY=llvm-objcopy OBJDUMP=llvm-objdump STRIP=llvm-strip CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- Image.gz-dtb dtbo.img
 
       - name: Empacotar AnyKernel3 ZIP
         run: |
